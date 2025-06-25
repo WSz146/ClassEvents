@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>班级热搜榜</title>
+    <title>班级热搜榜 - 实时同步</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
         * {
             margin: 0;
@@ -30,6 +32,7 @@
             padding: 30px 0;
             color: white;
             text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            position: relative;
         }
         
         header h1 {
@@ -40,6 +43,30 @@
         header p {
             font-size: 1.2rem;
             opacity: 0.9;
+        }
+        
+        .sync-status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 15px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+        }
+        
+        .sync-status .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #27ae60;
+        }
+        
+        .sync-status .dot.offline {
+            background: #e74c3c;
         }
         
         .hot-search-container {
@@ -520,13 +547,34 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        
+        .online-users {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 15px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
+            <div class="online-users">
+                <i class="fas fa-users"></i>
+                <span id="onlineCount">1</span> 人在线
+            </div>
             <h1>班级热搜榜</h1>
             <p>实时更新班级最热门的话题和事件</p>
+            <div class="sync-status">
+                <div class="dot" id="syncStatus"></div>
+                <span id="syncText">正在同步...</span>
+            </div>
         </header>
         
         <div class="hot-search-container">
@@ -538,7 +586,10 @@
             </div>
             
             <div class="hot-search-list" id="hotSearchList">
-                <!-- 热搜内容将通过JavaScript动态生成 -->
+                <div class="loader">
+                    <div class="spinner"></div>
+                    <p>加载热搜中...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -639,20 +690,35 @@
     <script>
         // 初始热搜数据
         const initialHotSearchData = [
-            { id: 1, rank: 1, topic: "期中考试时间公布", description: "班主任宣布期中考试将于下周三举行", hotIndex: 9854321, trend: "up" },
-            { id: 2, rank: 2, topic: "班级篮球赛夺冠", description: "我班在校篮球比赛中勇夺冠军", hotIndex: 8765432, trend: "up" },
-            { id: 3, rank: 3, topic: "下周春游计划", description: "班长提议组织春游活动，地点待定", hotIndex: 7654321, trend: "down" },
-            { id: 4, rank: 4, topic: "新班规实施", description: "本周开始执行新的班级管理规定", hotIndex: 6543210, trend: "up" },
-            { id: 5, rank: 5, topic: "数学作业难度大", description: "同学们反映本周数学作业难度较高", hotIndex: 5432109, trend: "up" },
-            { id: 6, rank: 6, topic: "教室装饰大赛", description: "学校将举办教室装饰大赛，征集创意", hotIndex: 4321098, trend: "down" },
-            { id: 7, rank: 7, topic: "英语演讲比赛", description: "下月将举行英语演讲比赛，欢迎报名", hotIndex: 3210987, trend: "new" },
-            { id: 8, rank: 8, topic: "班级公众号上线", description: "班级官方公众号正式上线，欢迎关注", hotIndex: 2109876, trend: "new" },
-            { id: 9, rank: 9, topic: "课代表选举", description: "下周将进行各科课代表选举", hotIndex: 1098765, trend: "down" },
-            { id: 10, rank: 10, topic: "图书馆开放时间调整", description: "学校图书馆开放时间延长至晚上8点", hotIndex: 987654, trend: "up" }
+            { id: "1", rank: 1, topic: "期中考试时间公布", description: "班主任宣布期中考试将于下周三举行", hotIndex: 9854321, trend: "up" },
+            { id: "2", rank: 2, topic: "班级篮球赛夺冠", description: "我班在校篮球比赛中勇夺冠军", hotIndex: 8765432, trend: "up" },
+            { id: "3", rank: 3, topic: "下周春游计划", description: "班长提议组织春游活动，地点待定", hotIndex: 7654321, trend: "down" },
+            { id: "4", rank: 4, topic: "新班规实施", description: "本周开始执行新的班级管理规定", hotIndex: 6543210, trend: "up" },
+            { id: "5", rank: 5, topic: "数学作业难度大", description: "同学们反映本周数学作业难度较高", hotIndex: 5432109, trend: "up" },
+            { id: "6", rank: 6, topic: "教室装饰大赛", description: "学校将举办教室装饰大赛，征集创意", hotIndex: 4321098, trend: "down" },
+            { id: "7", rank: 7, topic: "英语演讲比赛", description: "下月将举行英语演讲比赛，欢迎报名", hotIndex: 3210987, trend: "new" },
+            { id: "8", rank: 8, topic: "班级公众号上线", description: "班级官方公众号正式上线，欢迎关注", hotIndex: 2109876, trend: "new" },
+            { id: "9", rank: 9, topic: "课代表选举", description: "下周将进行各科课代表选举", hotIndex: 1098765, trend: "down" },
+            { id: "10", rank: 10, topic: "图书馆开放时间调整", description: "学校图书馆开放时间延长至晚上8点", hotIndex: 987654, trend: "up" }
         ];
         
         // 管理密码
-        const ADMIN_PASSWORD = "ZY409C6";
+        const ADMIN_PASSWORD = "class2023";
+        
+        // Firebase配置
+        const firebaseConfig = {
+            apiKey: "AIzaSyDp1sR9u2v0gA5ZQJpXf9Y2d1nB3C4D5E6F7G8",
+            authDomain: "class-hot-search.firebaseapp.com",
+            databaseURL: "https://class-hot-search-default-rtdb.firebaseio.com",
+            projectId: "class-hot-search",
+            storageBucket: "class-hot-search.appspot.com",
+            messagingSenderId: "123456789012",
+            appId: "1:123456789012:web:abcdef1234567890abcdef"
+        };
+        
+        // 初始化Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
         
         // 获取DOM元素
         const hotSearchList = document.getElementById('hotSearchList');
@@ -675,76 +741,13 @@
         const hotTrendSelect = document.getElementById('hotTrend');
         const notification = document.getElementById('notification');
         const loader = document.getElementById('loader');
+        const syncStatus = document.getElementById('syncStatus');
+        const syncText = document.getElementById('syncText');
+        const onlineCount = document.getElementById('onlineCount');
         
         // 当前编辑的热搜ID
         let currentEditId = null;
-        
-        // 初始化热搜榜
-        function initHotSearch() {
-            hotSearchList.innerHTML = '';
-            
-            // 从localStorage获取数据，如果没有则使用初始数据
-            const hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
-            
-            // 按排名排序
-            hotSearchData.sort((a, b) => a.rank - b.rank);
-            
-            hotSearchData.forEach(item => {
-                const hotItem = document.createElement('div');
-                hotItem.className = 'hot-search-item';
-                hotItem.dataset.id = item.id;
-                
-                let trendIcon = '';
-                if (item.trend === 'up') {
-                    trendIcon = '<i class="fas fa-fire"></i>';
-                } else if (item.trend === 'down') {
-                    trendIcon = '<i class="fas fa-arrow-down"></i>';
-                } else {
-                    trendIcon = '<i class="fas fa-bolt"></i>';
-                }
-                
-                hotItem.innerHTML = `
-                    <div class="rank rank-${item.rank}">${item.rank}</div>
-                    <div class="content">
-                        <div class="topic">${item.topic}</div>
-                        <div class="description">${item.description}</div>
-                    </div>
-                    <div class="hot-index">
-                        ${trendIcon}
-                        <span>${formatHotIndex(item.hotIndex)}</span>
-                    </div>
-                `;
-                
-                hotSearchList.appendChild(hotItem);
-            });
-        }
-        
-        // 更新管理面板中的热搜选择器
-        function updateHotSearchSelector() {
-            hotSearchSelect.innerHTML = '<option value="new">-- 添加新热搜 --</option>';
-            
-            const hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
-            
-            // 按标题排序
-            hotSearchData.sort((a, b) => a.topic.localeCompare(b.topic));
-            
-            hotSearchData.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item.id;
-                option.textContent = `${item.rank}. ${item.topic}`;
-                hotSearchSelect.appendChild(option);
-            });
-        }
-        
-        // 格式化热度指数
-        function formatHotIndex(index) {
-            if (index >= 1000000) {
-                return (index / 1000000).toFixed(1) + 'M';
-            } else if (index >= 1000) {
-                return (index / 1000).toFixed(1) + 'K';
-            }
-            return index;
-        }
+        let onlineUsers = 1;
         
         // 显示通知
         function showNotification(message, isError = false) {
@@ -766,10 +769,79 @@
             loader.style.display = show ? 'block' : 'none';
         }
         
+        // 格式化热度指数
+        function formatHotIndex(index) {
+            if (index >= 1000000) {
+                return (index / 1000000).toFixed(1) + 'M';
+            } else if (index >= 1000) {
+                return (index / 1000).toFixed(1) + 'K';
+            }
+            return index;
+        }
+        
+        // 渲染热搜榜
+        function renderHotSearch(hotSearchData) {
+            // 按排名排序
+            hotSearchData.sort((a, b) => a.rank - b.rank);
+            
+            let html = '';
+            
+            hotSearchData.forEach(item => {
+                let trendIcon = '';
+                if (item.trend === 'up') {
+                    trendIcon = '<i class="fas fa-fire"></i>';
+                } else if (item.trend === 'down') {
+                    trendIcon = '<i class="fas fa-arrow-down"></i>';
+                } else {
+                    trendIcon = '<i class="fas fa-bolt"></i>';
+                }
+                
+                html += `
+                <div class="hot-search-item" data-id="${item.id}">
+                    <div class="rank rank-${item.rank}">${item.rank}</div>
+                    <div class="content">
+                        <div class="topic">${item.topic}</div>
+                        <div class="description">${item.description}</div>
+                    </div>
+                    <div class="hot-index">
+                        ${trendIcon}
+                        <span>${formatHotIndex(item.hotIndex)}</span>
+                    </div>
+                </div>
+                `;
+            });
+            
+            hotSearchList.innerHTML = html;
+        }
+        
+        // 更新管理面板中的热搜选择器
+        function updateHotSearchSelector(hotSearchData) {
+            hotSearchSelect.innerHTML = '<option value="new">-- 添加新热搜 --</option>';
+            
+            // 按标题排序
+            hotSearchData.sort((a, b) => a.topic.localeCompare(b.topic));
+            
+            hotSearchData.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = `${item.rank}. ${item.topic}`;
+                hotSearchSelect.appendChild(option);
+            });
+        }
+        
+        // 重置表单
+        function resetForm() {
+            hotTopicInput.value = '';
+            hotDescriptionInput.value = '';
+            hotRankSelect.value = '1';
+            hotIndexInput.value = '1000000';
+            hotTrendSelect.value = 'up';
+            currentEditId = null;
+        }
+        
         // 打开管理面板
         openAdminPanelBtn.addEventListener('click', () => {
             adminPanel.classList.add('active');
-            // 每次打开时重置密码输入
             adminPasswordInput.value = '';
             passwordError.textContent = '';
             passwordSection.style.display = 'block';
@@ -791,15 +863,14 @@
                 passwordSection.style.display = 'none';
                 managementSection.classList.add('active');
                 passwordError.textContent = '';
-                
-                // 显示加载状态
                 showLoader(true);
                 
-                // 模拟加载数据
-                setTimeout(() => {
-                    updateHotSearchSelector();
+                // 加载热搜数据
+                database.ref('hotSearchData').once('value').then(snapshot => {
+                    const hotSearchData = snapshot.val() || initialHotSearchData;
+                    updateHotSearchSelector(hotSearchData);
                     showLoader(false);
-                }, 800);
+                });
             } else {
                 passwordError.textContent = '密码错误，请重新输入';
             }
@@ -825,12 +896,11 @@
                 return;
             }
             
-            let hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
-            
-            // 显示保存状态
             showLoader(true);
             
-            setTimeout(() => {
+            database.ref('hotSearchData').once('value').then(snapshot => {
+                let hotSearchData = snapshot.val() || initialHotSearchData;
+                
                 if (currentEditId) {
                     // 更新现有热搜
                     const index = hotSearchData.findIndex(item => item.id === currentEditId);
@@ -843,11 +913,10 @@
                             hotIndex,
                             trend
                         };
-                        showNotification('热搜更新成功！');
                     }
                 } else {
                     // 添加新热搜
-                    const newId = Date.now(); // 使用时间戳作为新ID
+                    const newId = Date.now().toString();
                     hotSearchData.push({
                         id: newId,
                         topic,
@@ -856,23 +925,21 @@
                         hotIndex,
                         trend
                     });
-                    showNotification('新热搜添加成功！');
                 }
                 
-                // 保存数据
-                localStorage.setItem('hotSearchData', JSON.stringify(hotSearchData));
-                
-                // 更新页面
-                initHotSearch();
-                updateHotSearchSelector();
-                
-                // 重置表单
-                resetForm();
-                hotSearchSelect.value = 'new';
-                
-                // 隐藏加载状态
-                showLoader(false);
-            }, 1000);
+                // 保存到数据库
+                database.ref('hotSearchData').set(hotSearchData)
+                    .then(() => {
+                        showNotification(currentEditId ? '热搜更新成功！' : '新热搜添加成功！');
+                        resetForm();
+                        hotSearchSelect.value = 'new';
+                        showLoader(false);
+                    })
+                    .catch(error => {
+                        showNotification('保存失败: ' + error.message, true);
+                        showLoader(false);
+                    });
+            });
         });
         
         // 删除选中的热搜
@@ -885,31 +952,27 @@
             }
             
             if (confirm('确定要删除这条热搜吗？')) {
-                let hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
-                
-                // 显示加载状态
                 showLoader(true);
                 
-                setTimeout(() => {
+                database.ref('hotSearchData').once('value').then(snapshot => {
+                    let hotSearchData = snapshot.val() || initialHotSearchData;
+                    
                     // 删除热搜
-                    hotSearchData = hotSearchData.filter(item => item.id !== parseInt(selectedId));
+                    hotSearchData = hotSearchData.filter(item => item.id !== selectedId);
                     
-                    // 保存数据
-                    localStorage.setItem('hotSearchData', JSON.stringify(hotSearchData));
-                    
-                    // 更新页面
-                    initHotSearch();
-                    updateHotSearchSelector();
-                    
-                    // 重置表单
-                    resetForm();
-                    hotSearchSelect.value = 'new';
-                    
-                    showNotification('热搜删除成功！');
-                    
-                    // 隐藏加载状态
-                    showLoader(false);
-                }, 800);
+                    // 保存到数据库
+                    database.ref('hotSearchData').set(hotSearchData)
+                        .then(() => {
+                            showNotification('热搜删除成功！');
+                            resetForm();
+                            hotSearchSelect.value = 'new';
+                            showLoader(false);
+                        })
+                        .catch(error => {
+                            showNotification('删除失败: ' + error.message, true);
+                            showLoader(false);
+                        });
+                });
             }
         });
         
@@ -922,37 +985,64 @@
                 return;
             }
             
-            const hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
-            const item = hotSearchData.find(item => item.id === parseInt(selectedId));
-            
-            if (item) {
-                hotTopicInput.value = item.topic;
-                hotDescriptionInput.value = item.description;
-                hotRankSelect.value = item.rank;
-                hotIndexInput.value = item.hotIndex;
-                hotTrendSelect.value = item.trend;
-                currentEditId = item.id;
-            }
+            database.ref('hotSearchData').once('value').then(snapshot => {
+                const hotSearchData = snapshot.val() || initialHotSearchData;
+                const item = hotSearchData.find(item => item.id === selectedId);
+                
+                if (item) {
+                    hotTopicInput.value = item.topic;
+                    hotDescriptionInput.value = item.description;
+                    hotRankSelect.value = item.rank;
+                    hotIndexInput.value = item.hotIndex;
+                    hotTrendSelect.value = item.trend;
+                    currentEditId = item.id;
+                }
+            });
         });
-        
-        // 重置表单
-        function resetForm() {
-            hotTopicInput.value = '';
-            hotDescriptionInput.value = '';
-            hotRankSelect.value = '1';
-            hotIndexInput.value = '1000000';
-            hotTrendSelect.value = 'up';
-            currentEditId = null;
-        }
         
         // 初始化页面
         document.addEventListener('DOMContentLoaded', () => {
-            // 保存初始数据到localStorage
-            if (!localStorage.getItem('hotSearchData')) {
-                localStorage.setItem('hotSearchData', JSON.stringify(initialHotSearchData));
-            }
+            // 显示加载状态
+            showLoader(true);
             
-            initHotSearch();
+            // 监听在线用户数
+            const connectedRef = database.ref(".info/connected");
+            connectedRef.on("value", (snap) => {
+                if (snap.val() === true) {
+                    syncStatus.className = 'dot';
+                    syncText.textContent = '已连接';
+                    
+                    // 用户上线
+                    const userRef = database.ref('presence/' + Date.now());
+                    userRef.set(true);
+                    
+                    // 设置用户离线时移除
+                    userRef.onDisconnect().remove();
+                } else {
+                    syncStatus.className = 'dot offline';
+                    syncText.textContent = '离线中';
+                }
+            });
+            
+            // 监听在线用户变化
+            database.ref('presence').on('value', (snapshot) => {
+                onlineUsers = snapshot.numChildren();
+                onlineCount.textContent = onlineUsers;
+            });
+            
+            // 监听热搜数据变化
+            database.ref('hotSearchData').on('value', (snapshot) => {
+                const hotSearchData = snapshot.val();
+                if (hotSearchData) {
+                    renderHotSearch(hotSearchData);
+                    showLoader(false);
+                    
+                    // 如果管理面板打开，更新选择器
+                    if (managementSection.classList.contains('active')) {
+                        updateHotSearchSelector(hotSearchData);
+                    }
+                }
+            });
         });
     </script>
 </body>
