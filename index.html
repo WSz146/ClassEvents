@@ -95,6 +95,7 @@
             padding: 20px 15px;
             border-bottom: 1px solid #eee;
             transition: all 0.3s ease;
+            cursor: pointer;
         }
         
         .hot-search-item:hover {
@@ -389,6 +390,65 @@
             .password-input button {
                 padding: 15px;
             }
+            
+            .actions {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+        
+        /* 添加热搜按钮 */
+        .add-hot-search-btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        .add-hot-search-btn:hover {
+            background: #219653;
+        }
+        
+        /* 编辑和删除按钮 */
+        .item-actions {
+            display: flex;
+            gap: 10px;
+            margin-left: 15px;
+        }
+        
+        .edit-btn, .delete-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .edit-btn:hover {
+            background: #2980b9;
+        }
+        
+        .delete-btn {
+            background: #e74c3c;
+        }
+        
+        .delete-btn:hover {
+            background: #c0392b;
         }
     </style>
 </head>
@@ -468,10 +528,13 @@
                     </div>
                     
                     <div class="actions">
-                        <button class="btn btn-primary" id="addHotSearch">添加热搜</button>
-                        <button class="btn btn-success" id="updateHotSearch">更新热搜</button>
+                        <button class="btn btn-primary" id="saveHotSearch">保存热搜</button>
                         <button class="btn btn-danger" id="deleteHotSearch">删除热搜</button>
                     </div>
+                    
+                    <button class="add-hot-search-btn" id="addNewHotSearch">
+                        <i class="fas fa-plus"></i> 添加新热搜
+                    </button>
                 </div>
             </div>
         </div>
@@ -493,7 +556,7 @@
         ];
         
         // 管理密码
-        const ADMIN_PASSWORD = "ZY409C6";
+        const ADMIN_PASSWORD = "class2023";
         
         // 获取DOM元素
         const hotSearchList = document.getElementById('hotSearchList');
@@ -505,6 +568,16 @@
         const adminPasswordInput = document.getElementById('adminPassword');
         const submitPasswordBtn = document.getElementById('submitPassword');
         const passwordError = document.getElementById('passwordError');
+        const saveHotSearchBtn = document.getElementById('saveHotSearch');
+        const deleteHotSearchBtn = document.getElementById('deleteHotSearch');
+        const addNewHotSearchBtn = document.getElementById('addNewHotSearch');
+        const hotTopicInput = document.getElementById('hotTopic');
+        const hotDescriptionInput = document.getElementById('hotDescription');
+        const hotRankSelect = document.getElementById('hotRank');
+        const hotIndexInput = document.getElementById('hotIndex');
+        
+        // 当前编辑的热搜ID
+        let currentEditId = null;
         
         // 初始化热搜榜
         function initHotSearch() {
@@ -513,9 +586,13 @@
             // 从localStorage获取数据，如果没有则使用初始数据
             const hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
             
+            // 按排名排序
+            hotSearchData.sort((a, b) => a.rank - b.rank);
+            
             hotSearchData.forEach(item => {
                 const hotItem = document.createElement('div');
                 hotItem.className = 'hot-search-item';
+                hotItem.dataset.id = item.id;
                 
                 let trendIcon = '';
                 if (item.trend === 'up') {
@@ -536,9 +613,30 @@
                         ${trendIcon}
                         <span>${formatHotIndex(item.hotIndex)}</span>
                     </div>
+                    <div class="item-actions">
+                        <button class="edit-btn" data-id="${item.id}"><i class="fas fa-edit"></i> 编辑</button>
+                        <button class="delete-btn" data-id="${item.id}"><i class="fas fa-trash"></i> 删除</button>
+                    </div>
                 `;
                 
                 hotSearchList.appendChild(hotItem);
+            });
+            
+            // 添加编辑和删除事件监听
+            document.querySelectorAll('.edit-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = parseInt(btn.dataset.id);
+                    editHotSearch(id);
+                });
+            });
+            
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = parseInt(btn.dataset.id);
+                    deleteHotSearch(id);
+                });
             });
         }
         
@@ -565,6 +663,7 @@
         // 关闭管理面板
         closeAdminPanelBtn.addEventListener('click', () => {
             adminPanel.classList.remove('active');
+            resetForm();
         });
         
         // 提交密码验证
@@ -580,20 +679,120 @@
             }
         });
         
-        // 添加热搜
-        document.getElementById('addHotSearch').addEventListener('click', () => {
-            alert('添加热搜功能已触发（实际应用中会更新数据）');
-        });
-        
-        // 更新热搜
-        document.getElementById('updateHotSearch').addEventListener('click', () => {
-            alert('更新热搜功能已触发（实际应用中会更新数据）');
+        // 保存热搜
+        saveHotSearchBtn.addEventListener('click', () => {
+            const topic = hotTopicInput.value.trim();
+            const description = hotDescriptionInput.value.trim();
+            const rank = parseInt(hotRankSelect.value);
+            const hotIndex = parseInt(hotIndexInput.value) || 1000000;
+            
+            if (!topic || !description) {
+                alert('请填写热搜标题和描述');
+                return;
+            }
+            
+            let hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
+            
+            if (currentEditId) {
+                // 更新现有热搜
+                const index = hotSearchData.findIndex(item => item.id === currentEditId);
+                if (index !== -1) {
+                    hotSearchData[index] = {
+                        ...hotSearchData[index],
+                        topic,
+                        description,
+                        rank,
+                        hotIndex
+                    };
+                }
+            } else {
+                // 添加新热搜
+                const newId = Date.now(); // 使用时间戳作为新ID
+                hotSearchData.push({
+                    id: newId,
+                    topic,
+                    description,
+                    rank,
+                    hotIndex,
+                    trend: 'new'
+                });
+            }
+            
+            // 保存数据
+            localStorage.setItem('hotSearchData', JSON.stringify(hotSearchData));
+            initHotSearch();
+            alert('保存成功！');
+            resetForm();
         });
         
         // 删除热搜
-        document.getElementById('deleteHotSearch').addEventListener('click', () => {
-            alert('删除热搜功能已触发（实际应用中会删除数据）');
+        deleteHotSearchBtn.addEventListener('click', () => {
+            if (!currentEditId) {
+                alert('请先选择要删除的热搜');
+                return;
+            }
+            
+            if (confirm('确定要删除这条热搜吗？')) {
+                let hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
+                
+                // 删除热搜
+                hotSearchData = hotSearchData.filter(item => item.id !== currentEditId);
+                
+                // 保存数据
+                localStorage.setItem('hotSearchData', JSON.stringify(hotSearchData));
+                initHotSearch();
+                alert('删除成功！');
+                resetForm();
+            }
         });
+        
+        // 添加新热搜
+        addNewHotSearchBtn.addEventListener('click', () => {
+            resetForm();
+        });
+        
+        // 编辑热搜
+        function editHotSearch(id) {
+            const hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
+            const item = hotSearchData.find(item => item.id === id);
+            
+            if (item) {
+                hotTopicInput.value = item.topic;
+                hotDescriptionInput.value = item.description;
+                hotRankSelect.value = item.rank;
+                hotIndexInput.value = item.hotIndex;
+                currentEditId = item.id;
+                
+                // 打开管理面板
+                adminPanel.classList.add('active');
+                passwordSection.style.display = 'none';
+                managementSection.classList.add('active');
+            }
+        }
+        
+        // 删除热搜
+        function deleteHotSearch(id) {
+            if (confirm('确定要删除这条热搜吗？')) {
+                let hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
+                
+                // 删除热搜
+                hotSearchData = hotSearchData.filter(item => item.id !== id);
+                
+                // 保存数据
+                localStorage.setItem('hotSearchData', JSON.stringify(hotSearchData));
+                initHotSearch();
+                alert('删除成功！');
+            }
+        }
+        
+        // 重置表单
+        function resetForm() {
+            hotTopicInput.value = '';
+            hotDescriptionInput.value = '';
+            hotRankSelect.value = '1';
+            hotIndexInput.value = '1000000';
+            currentEditId = null;
+        }
         
         // 初始化页面
         document.addEventListener('DOMContentLoaded', () => {
