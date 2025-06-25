@@ -184,11 +184,14 @@
         .admin-content {
             background: white;
             width: 90%;
-            max-width: 700px;
+            max-width: 800px;
+            max-height: 90vh;
             border-radius: 20px;
             overflow: hidden;
             transform: translateY(30px);
             transition: transform 0.4s ease;
+            display: flex;
+            flex-direction: column;
         }
         
         .admin-panel.active .admin-content {
@@ -223,6 +226,8 @@
         
         .admin-body {
             padding: 30px;
+            overflow-y: auto;
+            flex: 1;
         }
         
         .password-section {
@@ -367,6 +372,15 @@
             background: #219653;
         }
         
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+        
         /* 响应式设计 */
         @media (max-width: 768px) {
             header h1 {
@@ -421,34 +435,90 @@
             background: #219653;
         }
         
-        /* 编辑和删除按钮 */
-        .item-actions {
-            display: flex;
-            gap: 10px;
-            margin-left: 15px;
+        /* 热搜选择器 */
+        .hot-search-selector {
+            margin-bottom: 25px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 20px;
         }
         
-        .edit-btn, .delete-btn {
+        .hot-search-selector h4 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+            font-size: 1.2rem;
+        }
+        
+        .selector-container {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .selector-container select {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 1rem;
+        }
+        
+        .selector-container button {
             background: #3498db;
             color: white;
             border: none;
-            padding: 8px 15px;
-            border-radius: 5px;
-            font-size: 0.9rem;
+            padding: 0 20px;
+            border-radius: 10px;
+            font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
         }
         
-        .edit-btn:hover {
+        .selector-container button:hover {
             background: #2980b9;
         }
         
-        .delete-btn {
+        /* 通知消息 */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            background: #27ae60;
+            color: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transform: translateX(150%);
+            transition: transform 0.3s ease;
+            z-index: 2000;
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .notification.error {
             background: #e74c3c;
         }
         
-        .delete-btn:hover {
-            background: #c0392b;
+        /* 加载动画 */
+        .loader {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .loader .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -473,6 +543,9 @@
         </div>
     </div>
     
+    <!-- 通知消息 -->
+    <div class="notification" id="notification"></div>
+    
     <!-- 管理面板 -->
     <div class="admin-panel" id="adminPanel">
         <div class="admin-content">
@@ -494,7 +567,25 @@
                 </div>
                 
                 <div class="management-section" id="managementSection">
-                    <h3>管理热搜内容</h3>
+                    <div class="loader" id="loader">
+                        <div class="spinner"></div>
+                        <p>加载中...</p>
+                    </div>
+                    
+                    <div class="hot-search-selector">
+                        <h4>选择要编辑的热搜</h4>
+                        <div class="selector-container">
+                            <select id="hotSearchSelect">
+                                <option value="new">-- 添加新热搜 --</option>
+                                <!-- 动态填充其他热搜 -->
+                            </select>
+                            <button id="deleteSelected">
+                                <i class="fas fa-trash"></i> 删除
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <h3>热搜内容管理</h3>
                     
                     <div class="form-group">
                         <label for="hotTopic">热搜标题</label>
@@ -527,14 +618,19 @@
                         <input type="number" id="hotIndex" value="1000000" min="1">
                     </div>
                     
-                    <div class="actions">
-                        <button class="btn btn-primary" id="saveHotSearch">保存热搜</button>
-                        <button class="btn btn-danger" id="deleteHotSearch">删除热搜</button>
+                    <div class="form-group">
+                        <label for="hotTrend">热度趋势</label>
+                        <select id="hotTrend">
+                            <option value="up">上升</option>
+                            <option value="down">下降</option>
+                            <option value="new">新上榜</option>
+                        </select>
                     </div>
                     
-                    <button class="add-hot-search-btn" id="addNewHotSearch">
-                        <i class="fas fa-plus"></i> 添加新热搜
-                    </button>
+                    <div class="actions">
+                        <button class="btn btn-secondary" id="resetForm">重置表单</button>
+                        <button class="btn btn-primary" id="saveHotSearch">保存热搜</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -569,12 +665,16 @@
         const submitPasswordBtn = document.getElementById('submitPassword');
         const passwordError = document.getElementById('passwordError');
         const saveHotSearchBtn = document.getElementById('saveHotSearch');
-        const deleteHotSearchBtn = document.getElementById('deleteHotSearch');
-        const addNewHotSearchBtn = document.getElementById('addNewHotSearch');
+        const resetFormBtn = document.getElementById('resetForm');
+        const hotSearchSelect = document.getElementById('hotSearchSelect');
+        const deleteSelectedBtn = document.getElementById('deleteSelected');
         const hotTopicInput = document.getElementById('hotTopic');
         const hotDescriptionInput = document.getElementById('hotDescription');
         const hotRankSelect = document.getElementById('hotRank');
         const hotIndexInput = document.getElementById('hotIndex');
+        const hotTrendSelect = document.getElementById('hotTrend');
+        const notification = document.getElementById('notification');
+        const loader = document.getElementById('loader');
         
         // 当前编辑的热搜ID
         let currentEditId = null;
@@ -613,30 +713,26 @@
                         ${trendIcon}
                         <span>${formatHotIndex(item.hotIndex)}</span>
                     </div>
-                    <div class="item-actions">
-                        <button class="edit-btn" data-id="${item.id}"><i class="fas fa-edit"></i> 编辑</button>
-                        <button class="delete-btn" data-id="${item.id}"><i class="fas fa-trash"></i> 删除</button>
-                    </div>
                 `;
                 
                 hotSearchList.appendChild(hotItem);
             });
+        }
+        
+        // 更新管理面板中的热搜选择器
+        function updateHotSearchSelector() {
+            hotSearchSelect.innerHTML = '<option value="new">-- 添加新热搜 --</option>';
             
-            // 添加编辑和删除事件监听
-            document.querySelectorAll('.edit-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const id = parseInt(btn.dataset.id);
-                    editHotSearch(id);
-                });
-            });
+            const hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
             
-            document.querySelectorAll('.delete-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const id = parseInt(btn.dataset.id);
-                    deleteHotSearch(id);
-                });
+            // 按标题排序
+            hotSearchData.sort((a, b) => a.topic.localeCompare(b.topic));
+            
+            hotSearchData.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = `${item.rank}. ${item.topic}`;
+                hotSearchSelect.appendChild(option);
             });
         }
         
@@ -650,14 +746,35 @@
             return index;
         }
         
+        // 显示通知
+        function showNotification(message, isError = false) {
+            notification.textContent = message;
+            notification.className = 'notification show';
+            if (isError) {
+                notification.classList.add('error');
+            } else {
+                notification.classList.remove('error');
+            }
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 显示加载状态
+        function showLoader(show) {
+            loader.style.display = show ? 'block' : 'none';
+        }
+        
         // 打开管理面板
         openAdminPanelBtn.addEventListener('click', () => {
             adminPanel.classList.add('active');
-            // 每次打开时重置密码输入和管理区域
+            // 每次打开时重置密码输入
             adminPasswordInput.value = '';
             passwordError.textContent = '';
             passwordSection.style.display = 'block';
             managementSection.classList.remove('active');
+            resetForm();
         });
         
         // 关闭管理面板
@@ -674,9 +791,25 @@
                 passwordSection.style.display = 'none';
                 managementSection.classList.add('active');
                 passwordError.textContent = '';
+                
+                // 显示加载状态
+                showLoader(true);
+                
+                // 模拟加载数据
+                setTimeout(() => {
+                    updateHotSearchSelector();
+                    showLoader(false);
+                }, 800);
             } else {
                 passwordError.textContent = '密码错误，请重新输入';
             }
+        });
+        
+        // 重置表单
+        resetFormBtn.addEventListener('click', () => {
+            resetForm();
+            hotSearchSelect.value = 'new';
+            showNotification('表单已重置');
         });
         
         // 保存热搜
@@ -685,105 +818,122 @@
             const description = hotDescriptionInput.value.trim();
             const rank = parseInt(hotRankSelect.value);
             const hotIndex = parseInt(hotIndexInput.value) || 1000000;
+            const trend = hotTrendSelect.value;
             
             if (!topic || !description) {
-                alert('请填写热搜标题和描述');
+                showNotification('请填写热搜标题和描述', true);
                 return;
             }
             
             let hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
             
-            if (currentEditId) {
-                // 更新现有热搜
-                const index = hotSearchData.findIndex(item => item.id === currentEditId);
-                if (index !== -1) {
-                    hotSearchData[index] = {
-                        ...hotSearchData[index],
+            // 显示保存状态
+            showLoader(true);
+            
+            setTimeout(() => {
+                if (currentEditId) {
+                    // 更新现有热搜
+                    const index = hotSearchData.findIndex(item => item.id === currentEditId);
+                    if (index !== -1) {
+                        hotSearchData[index] = {
+                            ...hotSearchData[index],
+                            topic,
+                            description,
+                            rank,
+                            hotIndex,
+                            trend
+                        };
+                        showNotification('热搜更新成功！');
+                    }
+                } else {
+                    // 添加新热搜
+                    const newId = Date.now(); // 使用时间戳作为新ID
+                    hotSearchData.push({
+                        id: newId,
                         topic,
                         description,
                         rank,
-                        hotIndex
-                    };
+                        hotIndex,
+                        trend
+                    });
+                    showNotification('新热搜添加成功！');
                 }
-            } else {
-                // 添加新热搜
-                const newId = Date.now(); // 使用时间戳作为新ID
-                hotSearchData.push({
-                    id: newId,
-                    topic,
-                    description,
-                    rank,
-                    hotIndex,
-                    trend: 'new'
-                });
-            }
-            
-            // 保存数据
-            localStorage.setItem('hotSearchData', JSON.stringify(hotSearchData));
-            initHotSearch();
-            alert('保存成功！');
-            resetForm();
+                
+                // 保存数据
+                localStorage.setItem('hotSearchData', JSON.stringify(hotSearchData));
+                
+                // 更新页面
+                initHotSearch();
+                updateHotSearchSelector();
+                
+                // 重置表单
+                resetForm();
+                hotSearchSelect.value = 'new';
+                
+                // 隐藏加载状态
+                showLoader(false);
+            }, 1000);
         });
         
-        // 删除热搜
-        deleteHotSearchBtn.addEventListener('click', () => {
-            if (!currentEditId) {
-                alert('请先选择要删除的热搜');
+        // 删除选中的热搜
+        deleteSelectedBtn.addEventListener('click', () => {
+            const selectedId = hotSearchSelect.value;
+            
+            if (selectedId === 'new') {
+                showNotification('请选择要删除的热搜', true);
                 return;
             }
             
             if (confirm('确定要删除这条热搜吗？')) {
                 let hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
                 
-                // 删除热搜
-                hotSearchData = hotSearchData.filter(item => item.id !== currentEditId);
+                // 显示加载状态
+                showLoader(true);
                 
-                // 保存数据
-                localStorage.setItem('hotSearchData', JSON.stringify(hotSearchData));
-                initHotSearch();
-                alert('删除成功！');
-                resetForm();
+                setTimeout(() => {
+                    // 删除热搜
+                    hotSearchData = hotSearchData.filter(item => item.id !== parseInt(selectedId));
+                    
+                    // 保存数据
+                    localStorage.setItem('hotSearchData', JSON.stringify(hotSearchData));
+                    
+                    // 更新页面
+                    initHotSearch();
+                    updateHotSearchSelector();
+                    
+                    // 重置表单
+                    resetForm();
+                    hotSearchSelect.value = 'new';
+                    
+                    showNotification('热搜删除成功！');
+                    
+                    // 隐藏加载状态
+                    showLoader(false);
+                }, 800);
             }
         });
         
-        // 添加新热搜
-        addNewHotSearchBtn.addEventListener('click', () => {
-            resetForm();
-        });
-        
-        // 编辑热搜
-        function editHotSearch(id) {
+        // 当选择框改变时填充表单
+        hotSearchSelect.addEventListener('change', () => {
+            const selectedId = hotSearchSelect.value;
+            
+            if (selectedId === 'new') {
+                resetForm();
+                return;
+            }
+            
             const hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
-            const item = hotSearchData.find(item => item.id === id);
+            const item = hotSearchData.find(item => item.id === parseInt(selectedId));
             
             if (item) {
                 hotTopicInput.value = item.topic;
                 hotDescriptionInput.value = item.description;
                 hotRankSelect.value = item.rank;
                 hotIndexInput.value = item.hotIndex;
+                hotTrendSelect.value = item.trend;
                 currentEditId = item.id;
-                
-                // 打开管理面板
-                adminPanel.classList.add('active');
-                passwordSection.style.display = 'none';
-                managementSection.classList.add('active');
             }
-        }
-        
-        // 删除热搜
-        function deleteHotSearch(id) {
-            if (confirm('确定要删除这条热搜吗？')) {
-                let hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
-                
-                // 删除热搜
-                hotSearchData = hotSearchData.filter(item => item.id !== id);
-                
-                // 保存数据
-                localStorage.setItem('hotSearchData', JSON.stringify(hotSearchData));
-                initHotSearch();
-                alert('删除成功！');
-            }
-        }
+        });
         
         // 重置表单
         function resetForm() {
@@ -791,6 +941,7 @@
             hotDescriptionInput.value = '';
             hotRankSelect.value = '1';
             hotIndexInput.value = '1000000';
+            hotTrendSelect.value = 'up';
             currentEditId = null;
         }
         
