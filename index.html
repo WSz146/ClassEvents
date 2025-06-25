@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>班级热搜榜</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            padding: 30px 0;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        header h1 {
+            font-size: 3.2rem;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .hot-search-container {
+            background: rgba(255, 255, 255, 0.92);
+            border-radius: 20px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            margin-bottom: 40px;
+        }
+        
+        .hot-search-header {
+            background: linear-gradient(to right, #3498db, #2c3e50);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .hot-search-title {
+            font-size: 1.8rem;
+            font-weight: bold;
+        }
+        
+        .admin-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 50px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .admin-btn:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
+        }
+        
+        .hot-search-list {
+            padding: 25px;
+        }
+        
+        .hot-search-item {
+            display: flex;
+            align-items: center;
+            padding: 20px 15px;
+            border-bottom: 1px solid #eee;
+            transition: all 0.3s ease;
+        }
+        
+        .hot-search-item:hover {
+            background-color: #f9f9f9;
+            transform: translateX(5px);
+        }
+        
+        .rank {
+            font-size: 2rem;
+            font-weight: bold;
+            width: 60px;
+            text-align: center;
+            color: #e74c3c;
+        }
+        
+        .rank-1 { color: #ff6b6b; }
+        .rank-2 { color: #ff9e6b; }
+        .rank-3 { color: #ffd166; }
+        
+        .content {
+            flex: 1;
+        }
+        
+        .topic {
+            font-size: 1.4rem;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+        
+        .description {
+            color: #7f8c8d;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+        
+        .hot-index {
+            display: flex;
+            align-items: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #e74c3c;
+            gap: 8px;
+        }
+        
+        .hot-index i {
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        
+        .trend-up {
+            color: #e74c3c;
+        }
+        
+        .trend-down {
+            color: #27ae60;
+        }
+        
+        /* 管理面板样式 */
+        .admin-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.4s ease;
+        }
+        
+        .admin-panel.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        
+        .admin-content {
+            background: white;
+            width: 90%;
+            max-width: 700px;
+            border-radius: 20px;
+            overflow: hidden;
+            transform: translateY(30px);
+            transition: transform 0.4s ease;
+        }
+        
+        .admin-panel.active .admin-content {
+            transform: translateY(0);
+        }
+        
+        .admin-header {
+            background: linear-gradient(to right, #2c3e50, #1a2a6c);
+            color: white;
+            padding: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .admin-header h2 {
+            font-size: 1.8rem;
+        }
+        
+        .close-admin {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .close-admin:hover {
+            transform: rotate(90deg);
+        }
+        
+        .admin-body {
+            padding: 30px;
+        }
+        
+        .password-section {
+            margin-bottom: 30px;
+        }
+        
+        .password-section h3 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+            font-size: 1.3rem;
+        }
+        
+        .password-input {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .password-input input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            transition: border-color 0.3s;
+        }
+        
+        .password-input input:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+        
+        .password-input button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 0 30px;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .password-input button:hover {
+            background: #2980b9;
+        }
+        
+        .error-msg {
+            color: #e74c3c;
+            font-size: 0.9rem;
+            height: 20px;
+        }
+        
+        .management-section {
+            display: none;
+        }
+        
+        .management-section.active {
+            display: block;
+        }
+        
+        .management-section h3 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+            font-size: 1.3rem;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #34495e;
+        }
+        
+        .form-group input, 
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus, 
+        .form-group textarea:focus,
+        .form-group select:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+        
+        .form-group textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+        
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+        
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #219653;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2.5rem;
+            }
+            
+            .hot-search-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+            
+            .rank {
+                font-size: 1.8rem;
+            }
+            
+            .password-input {
+                flex-direction: column;
+            }
+            
+            .password-input button {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>班级热搜榜</h1>
+            <p>实时更新班级最热门的话题和事件</p>
+        </header>
+        
+        <div class="hot-search-container">
+            <div class="hot-search-header">
+                <div class="hot-search-title">今日热搜 TOP 10</div>
+                <button class="admin-btn" id="openAdminPanel">
+                    <i class="fas fa-lock"></i> 管理面板
+                </button>
+            </div>
+            
+            <div class="hot-search-list" id="hotSearchList">
+                <!-- 热搜内容将通过JavaScript动态生成 -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- 管理面板 -->
+    <div class="admin-panel" id="adminPanel">
+        <div class="admin-content">
+            <div class="admin-header">
+                <h2>热搜管理面板</h2>
+                <button class="close-admin" id="closeAdminPanel">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="admin-body">
+                <div class="password-section" id="passwordSection">
+                    <h3>管理员登录</h3>
+                    <div class="password-input">
+                        <input type="password" id="adminPassword" placeholder="请输入管理密码">
+                        <button id="submitPassword">验证</button>
+                    </div>
+                    <div class="error-msg" id="passwordError"></div>
+                </div>
+                
+                <div class="management-section" id="managementSection">
+                    <h3>管理热搜内容</h3>
+                    
+                    <div class="form-group">
+                        <label for="hotTopic">热搜标题</label>
+                        <input type="text" id="hotTopic" placeholder="输入热搜标题">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="hotDescription">热搜描述</label>
+                        <textarea id="hotDescription" placeholder="输入热搜详细描述"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="hotRank">热搜排名</label>
+                        <select id="hotRank">
+                            <option value="1">第1名</option>
+                            <option value="2">第2名</option>
+                            <option value="3">第3名</option>
+                            <option value="4">第4名</option>
+                            <option value="5">第5名</option>
+                            <option value="6">第6名</option>
+                            <option value="7">第7名</option>
+                            <option value="8">第8名</option>
+                            <option value="9">第9名</option>
+                            <option value="10">第10名</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="hotIndex">热度指数</label>
+                        <input type="number" id="hotIndex" value="1000000" min="1">
+                    </div>
+                    
+                    <div class="actions">
+                        <button class="btn btn-primary" id="addHotSearch">添加热搜</button>
+                        <button class="btn btn-success" id="updateHotSearch">更新热搜</button>
+                        <button class="btn btn-danger" id="deleteHotSearch">删除热搜</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始热搜数据
+        const initialHotSearchData = [
+            { id: 1, rank: 1, topic: "期中考试时间公布", description: "班主任宣布期中考试将于下周三举行", hotIndex: 9854321, trend: "up" },
+            { id: 2, rank: 2, topic: "班级篮球赛夺冠", description: "我班在校篮球比赛中勇夺冠军", hotIndex: 8765432, trend: "up" },
+            { id: 3, rank: 3, topic: "下周春游计划", description: "班长提议组织春游活动，地点待定", hotIndex: 7654321, trend: "down" },
+            { id: 4, rank: 4, topic: "新班规实施", description: "本周开始执行新的班级管理规定", hotIndex: 6543210, trend: "up" },
+            { id: 5, rank: 5, topic: "数学作业难度大", description: "同学们反映本周数学作业难度较高", hotIndex: 5432109, trend: "up" },
+            { id: 6, rank: 6, topic: "教室装饰大赛", description: "学校将举办教室装饰大赛，征集创意", hotIndex: 4321098, trend: "down" },
+            { id: 7, rank: 7, topic: "英语演讲比赛", description: "下月将举行英语演讲比赛，欢迎报名", hotIndex: 3210987, trend: "new" },
+            { id: 8, rank: 8, topic: "班级公众号上线", description: "班级官方公众号正式上线，欢迎关注", hotIndex: 2109876, trend: "new" },
+            { id: 9, rank: 9, topic: "课代表选举", description: "下周将进行各科课代表选举", hotIndex: 1098765, trend: "down" },
+            { id: 10, rank: 10, topic: "图书馆开放时间调整", description: "学校图书馆开放时间延长至晚上8点", hotIndex: 987654, trend: "up" }
+        ];
+        
+        // 管理密码
+        const ADMIN_PASSWORD = "ZY409C6";
+        
+        // 获取DOM元素
+        const hotSearchList = document.getElementById('hotSearchList');
+        const adminPanel = document.getElementById('adminPanel');
+        const openAdminPanelBtn = document.getElementById('openAdminPanel');
+        const closeAdminPanelBtn = document.getElementById('closeAdminPanel');
+        const passwordSection = document.getElementById('passwordSection');
+        const managementSection = document.getElementById('managementSection');
+        const adminPasswordInput = document.getElementById('adminPassword');
+        const submitPasswordBtn = document.getElementById('submitPassword');
+        const passwordError = document.getElementById('passwordError');
+        
+        // 初始化热搜榜
+        function initHotSearch() {
+            hotSearchList.innerHTML = '';
+            
+            // 从localStorage获取数据，如果没有则使用初始数据
+            const hotSearchData = JSON.parse(localStorage.getItem('hotSearchData')) || initialHotSearchData;
+            
+            hotSearchData.forEach(item => {
+                const hotItem = document.createElement('div');
+                hotItem.className = 'hot-search-item';
+                
+                let trendIcon = '';
+                if (item.trend === 'up') {
+                    trendIcon = '<i class="fas fa-fire"></i>';
+                } else if (item.trend === 'down') {
+                    trendIcon = '<i class="fas fa-arrow-down"></i>';
+                } else {
+                    trendIcon = '<i class="fas fa-bolt"></i>';
+                }
+                
+                hotItem.innerHTML = `
+                    <div class="rank rank-${item.rank}">${item.rank}</div>
+                    <div class="content">
+                        <div class="topic">${item.topic}</div>
+                        <div class="description">${item.description}</div>
+                    </div>
+                    <div class="hot-index">
+                        ${trendIcon}
+                        <span>${formatHotIndex(item.hotIndex)}</span>
+                    </div>
+                `;
+                
+                hotSearchList.appendChild(hotItem);
+            });
+        }
+        
+        // 格式化热度指数
+        function formatHotIndex(index) {
+            if (index >= 1000000) {
+                return (index / 1000000).toFixed(1) + 'M';
+            } else if (index >= 1000) {
+                return (index / 1000).toFixed(1) + 'K';
+            }
+            return index;
+        }
+        
+        // 打开管理面板
+        openAdminPanelBtn.addEventListener('click', () => {
+            adminPanel.classList.add('active');
+            // 每次打开时重置密码输入和管理区域
+            adminPasswordInput.value = '';
+            passwordError.textContent = '';
+            passwordSection.style.display = 'block';
+            managementSection.classList.remove('active');
+        });
+        
+        // 关闭管理面板
+        closeAdminPanelBtn.addEventListener('click', () => {
+            adminPanel.classList.remove('active');
+        });
+        
+        // 提交密码验证
+        submitPasswordBtn.addEventListener('click', () => {
+            const password = adminPasswordInput.value;
+            
+            if (password === ADMIN_PASSWORD) {
+                passwordSection.style.display = 'none';
+                managementSection.classList.add('active');
+                passwordError.textContent = '';
+            } else {
+                passwordError.textContent = '密码错误，请重新输入';
+            }
+        });
+        
+        // 添加热搜
+        document.getElementById('addHotSearch').addEventListener('click', () => {
+            alert('添加热搜功能已触发（实际应用中会更新数据）');
+        });
+        
+        // 更新热搜
+        document.getElementById('updateHotSearch').addEventListener('click', () => {
+            alert('更新热搜功能已触发（实际应用中会更新数据）');
+        });
+        
+        // 删除热搜
+        document.getElementById('deleteHotSearch').addEventListener('click', () => {
+            alert('删除热搜功能已触发（实际应用中会删除数据）');
+        });
+        
+        // 初始化页面
+        document.addEventListener('DOMContentLoaded', () => {
+            // 保存初始数据到localStorage
+            if (!localStorage.getItem('hotSearchData')) {
+                localStorage.setItem('hotSearchData', JSON.stringify(initialHotSearchData));
+            }
+            
+            initHotSearch();
+        });
+    </script>
+</body>
+</html>
